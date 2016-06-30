@@ -3,6 +3,7 @@
  * check for CSS related to the route.
  */
 import Ember from 'ember';
+import service from '../services/current-css';
 
 let alreadyRun = false;
 
@@ -37,13 +38,43 @@ function isIndexRoute(route) {
   return route.indexOf('index') !== -1 || route.indexOf('application') !== -1;
 }
 
-export function initialize() {
+export function initialize(application) {
   // Don't run initializer more than once
   if (alreadyRun) { return; }
+
+  application.register('current-css:main', service, { instantiate: false });
+  application.inject('route', 'currentCSS', 'current-css:main');
 
   alreadyRun = true;
 
   Ember.Route.reopen({
+    currentCSS: Ember.inject.service (),
+    actions: {
+      didTransition () {
+        this.updateCurrentTransition ();
+      }
+    },
+
+    updateCurrentTransition () {
+      if (this.noCSS === true || !this.enableRemoveCSSOnTransition) {
+        this.removeCSSOnTransition ();
+      }
+      //Set link to new link, that was set in beforeModel
+      this.set("currentCSS.link", this.get ("currentCSS.newLink"));
+
+      //Set newLink to false
+      this.set("currentCSS.newLink", null);
+    },
+    removeCSSOnTransition () {
+      //Get the current link
+      let currentLink = this.get("currentCSS.link");
+
+      //If is not null, remove from head
+      if (Ember.isNone (currentLink) === false) {
+        document.head.removeChild(currentLink);
+      }
+    },
+
     /**
      * Checks if the CSS for the route has been loaded, if not it inserts a new
      * link element to load the stylesheet and returns a promise that resolves
@@ -90,6 +121,8 @@ export function initialize() {
       });
 
       document.head.appendChild(link);
+
+      this.set("currentCSS.newLink", link);
 
       return promise;
     }
